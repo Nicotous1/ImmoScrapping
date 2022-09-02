@@ -12,5 +12,12 @@ f.close()
 #%%
 # open and read the file after the appending:
 f = open("nexity_list.html", "rb")
-print(f.read())
+content = f.read()
 f.close()
+
+
+# %%
+class_identifier = ".product--lots-details .content"
+from bs4 import BeautifulSoup
+
+soup = BeautifulSoup(content, "html.parser")
