@@ -2,10 +2,12 @@
 
 """Tests for `immo_scrap` package."""
 
+from datetime import datetime
+from pathlib import Path
 import pytest
 from bs4 import Tag
 
-from immo_scrap import nexity
+from immo_scrap import nexity, factories
 import pandas as pd
 
 
@@ -131,7 +133,7 @@ class Test_NexityBien:
                     "Orientation": "Nord-Ouest",
                     "Les +": "",
                 },
-                nexity.NexityBien(
+                nexity.NexityLine(
                     type=nexity.BienType.APPARTEMENT,
                     price=303_700.00,
                     price_low_tva=None,
@@ -157,7 +159,7 @@ class Test_NexityBien:
                     "Parking": "1 inclus",
                     "Les +": "Balcon",
                 },
-                nexity.NexityBien(
+                nexity.NexityLine(
                     type=nexity.BienType.APPARTEMENT,
                     price_low_tva=493_000.00,
                     price=560_760.00,
@@ -183,7 +185,7 @@ class Test_NexityBien:
                     "Parking": "4 inclus",
                     "Les +": "Terasse",
                 },
-                nexity.NexityBien(
+                nexity.NexityLine(
                     type=nexity.BienType.APPARTEMENT,
                     price_low_tva=240_000.00,
                     price=534_600.00,
@@ -199,7 +201,7 @@ class Test_NexityBien:
         ],
     )
     def test_create_from_dict(self, datas, expected):
-        res = nexity.NexityBien.create_from_dict(datas)
+        res = nexity.NexityLine.create_from_dict(datas)
         assert res == expected
 
 
@@ -220,14 +222,14 @@ def test_extract_biens_from_table(nexity_table_tag):
     res = nexity.extract_biens_from_table(nexity_table_tag)
     assert isinstance(res, list)
     assert len(res) == 8
-    assert isinstance(res[2], nexity.NexityBien)
+    assert isinstance(res[2], nexity.NexityLine)
 
 
 def test_extract_biens_from_table_v2(nexity_table_v2_tag):
     res = nexity.extract_biens_from_table(nexity_table_v2_tag)
     assert isinstance(res, list)
     assert len(res) == 16
-    assert isinstance(res[10], nexity.NexityBien)
+    assert isinstance(res[10], nexity.NexityLine)
 
 
 class Test_NexityTable:
@@ -237,9 +239,32 @@ class Test_NexityTable:
         biens = res.biens
         assert isinstance(biens, list)
         assert len(biens) == 8
-        assert isinstance(biens[1], nexity.NexityBien)
-        assert res.title == "2 pièces"
+        assert isinstance(biens[1], nexity.NexityLine)
+        assert res.n_pieces == "2 pièces"
         assert res.n_theoric == 8
+
+
+@pytest.fixture()
+def nexity_table(nexity_table_tag):
+    return nexity.NexityTable.create_from_table_tag(nexity_table_tag)
+
+
+@pytest.fixture()
+def nexity_biens(nexity_table):
+    return nexity.NexityBien.create_from_nexity_table(nexity_table)
+
+
+class Test_NexityBien:
+    def test_create_from_nexity_table(self, nexity_table, freezer):
+        now = datetime(2000, 1, 1)
+        freezer.move_to(now)
+        res = nexity.NexityBien.create_from_nexity_table(nexity_table)
+        assert isinstance(res, list)
+        assert len(res) == 8
+        res_1 = res[1]
+        assert isinstance(res_1, nexity.NexityBien)
+        assert res_1.n_pieces == nexity_table.n_pieces
+        assert res_1.date_loaded == now
 
 
 def test_extract_nexity_tables_from_soup(nexity_list_soup):
@@ -248,3 +273,26 @@ def test_extract_nexity_tables_from_soup(nexity_list_soup):
     assert len(res) == 3
     res_1 = res[1]
     assert isinstance(res_1, nexity.NexityTable)
+
+
+def test_convert_nexity_biens_to_dataframe(nexity_biens):
+    res = nexity.convert_nexity_biens_to_dataframe(nexity_biens)
+    assert isinstance(res, pd.DataFrame)
+    assert res.shape == (8, 12)
+    assert res.iloc[0]["type"] == "Appartement"
+    assert res.iloc[0]["orientation"] == "Nord-Ouest"
+
+
+def test_extract_nexity_biens_from_soup(nexity_list_soup):
+    res = nexity.extract_nexity_biens_from_soup(nexity_list_soup)
+    assert isinstance(res, list)
+    assert len(res) == 41
+
+
+def test_save_nexity_biens(tmp_path: Path):
+    file_path = tmp_path / "biens.json"
+    biens = factories.NexityBienFactory.create_batch(5)
+    nexity.save_nexity_biens_to_parquet(biens, file_path)
+    assert file_path.exists() is True
+    parquet = pd.read_parquet(file_path)
+    assert parquet.shape == (5, 12)

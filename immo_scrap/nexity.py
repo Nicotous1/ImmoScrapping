@@ -1,8 +1,13 @@
 from dataclasses import dataclass
+import dataclasses
+from datetime import datetime
 from enum import Enum
+import json
+from pathlib import Path
 from typing import Any, Dict, List, Union
 import pandas as pd
 from bs4 import BeautifulSoup, ResultSet, Tag
+import requests
 
 
 def extract_tables_from_soup(soup: BeautifulSoup) -> ResultSet:
@@ -96,7 +101,7 @@ def convert_n_inclus_str_to_int(n_inclus_str: str) -> int:
 
 
 @dataclass
-class NexityBien:
+class NexityLine:
     type: BienType
     price: float
     price_low_tva: Union[None, float]
@@ -152,7 +157,7 @@ class NexityBien:
 
     @classmethod
     def create_from_dict(cls, datas: Dict[str, Any]):
-        return NexityBien(
+        return NexityLine(
             type=cls.extract_type(datas),
             price=cls.extract_price(datas),
             price_low_tva=cls.extract_price_low_tva(datas),
@@ -166,19 +171,19 @@ class NexityBien:
         )
 
 
-def extract_biens_from_table(table: Tag) -> List[NexityBien]:
+def extract_biens_from_table(table: Tag) -> List[NexityLine]:
     columns = extract_columns_name_from_table(table)
     values = extract_elements_values_from_table(table)
     res = [
-        NexityBien.create_from_dict(dict(zip(columns, values_i))) for values_i in values
+        NexityLine.create_from_dict(dict(zip(columns, values_i))) for values_i in values
     ]
     return res
 
 
 @dataclass
 class NexityTable:
-    biens: List[NexityBien]
-    title: str
+    biens: List[NexityLine]
+    n_pieces: str
     n_theoric: int
 
     @classmethod
@@ -188,7 +193,7 @@ class NexityTable:
         n_theoric = extract_n_theoric_from_table(table)
         return NexityTable(
             biens=biens,
-            title=title,
+            n_pieces=title,
             n_theoric=n_theoric,
         )
 
@@ -197,3 +202,51 @@ def extract_nexity_tables_from_soup(soup: BeautifulSoup) -> List[NexityTable]:
     tables = extract_tables_from_soup(soup)
     nexity_tables = [NexityTable.create_from_table_tag(table) for table in tables]
     return nexity_tables
+
+
+@dataclass
+class NexityBien:
+    type: BienType
+    price: float
+    price_low_tva: Union[None, float]
+    date_livraison: str
+    size: int
+    floor: int
+    orientation: Orientation
+    has_balcony: bool
+    has_terasse: bool
+    n_parking: int
+    n_pieces: str
+    date_loaded: datetime
+
+    @classmethod
+    def create_from_nexity_table(cls, table: NexityTable) -> List["NexityBien"]:
+        return [
+            NexityBien(
+                date_loaded=datetime.now(), n_pieces=table.n_pieces, **bien.__dict__
+            )
+            for bien in table.biens
+        ]
+
+
+def convert_nexity_biens_to_dataframe(biens: List[NexityBien]) -> pd.DataFrame:
+    biens_dict = [bien.__dict__ for bien in biens]
+    df = pd.DataFrame.from_records(biens_dict)
+    cols_enum = ["type", "orientation"]
+    for col_enum in cols_enum:
+        df[col_enum] = df[col_enum].apply(lambda x: x.value)
+    return df
+
+
+def extract_nexity_biens_from_soup(soup: BeautifulSoup) -> List[NexityBien]:
+    tables = extract_nexity_tables_from_soup(soup)
+    biens = []
+    for table in tables:
+        nexity_biens_i = NexityBien.create_from_nexity_table(table)
+        biens += nexity_biens_i
+    return biens
+
+
+def save_nexity_biens_to_parquet(biens: List[NexityBien], path: Path) -> None:
+    df = convert_nexity_biens_to_dataframe(biens)
+    df.to_parquet(path)

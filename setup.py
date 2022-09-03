@@ -11,7 +11,7 @@ with open("README.rst") as readme_file:
 with open("HISTORY.rst") as history_file:
     history = history_file.read()
 
-requirements: List[str] = ["pandas", "beautifulsoup4", "requests"]
+requirements: List[str] = ["pandas", "beautifulsoup4", "requests", "pyarrow"]
 
 test_requirements = [
     "pytest>=3",
