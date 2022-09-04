@@ -250,3 +250,66 @@ def extract_nexity_biens_from_soup(soup: BeautifulSoup) -> List[NexityBien]:
 def save_nexity_biens_to_parquet(biens: List[NexityBien], path: Path) -> None:
     df = convert_nexity_biens_to_dataframe(biens)
     df.to_parquet(path)
+
+
+def download_content_from_url(url: str) -> bytes:
+    return requests.get(url).content
+
+
+def download_soup_from_url(url: str) -> BeautifulSoup:
+    res = download_content_from_url(url)
+    soup = BeautifulSoup(res)
+    return soup
+
+
+def download_nexity_biens_from_url(url: str) -> List[NexityBien]:
+    soup = download_soup_from_url(url)
+    biens = extract_nexity_biens_from_soup(soup)
+    return biens
+
+
+def download_and_save_nexity_biens_from_url(url: str, path: Path) -> None:
+    biens = download_nexity_biens_from_url(url)
+    save_nexity_biens_to_parquet(biens, path)
+
+
+def generate_signal_name() -> str:
+    now = datetime.now()
+    return f"signal_{now:%Y_%m_%d}"
+
+
+def generate_signal_html_filename() -> str:
+    base_name = generate_signal_name()
+    file_name = f"{base_name}.html"
+    return file_name
+
+
+def save_bytes_to(content: bytes, path: Path) -> None:
+    f = open(path, "wb")
+    f.write(content)
+    f.close()
+
+
+def read_bytes_from(path: Path) -> bytes:
+    f = open(path, "rb")
+    content = f.read()
+    f.close()
+    return content
+
+
+SIGNAL_URL = "https://www.nexity.fr/neuf/0099__98124"
+
+
+def download_signal_content() -> bytes:
+    return download_content_from_url(SIGNAL_URL)
+
+
+def download_and_save_url_html(url: str, path: Path) -> None:
+    content = download_content_from_url(url)
+    save_bytes_to(content, path)
+
+
+def download_and_save_signal_html(folder_path: Path) -> None:
+    url = SIGNAL_URL
+    file_path = folder_path / generate_signal_html_filename()
+    download_and_save_url_html(url, file_path)

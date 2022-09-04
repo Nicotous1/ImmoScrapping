@@ -5,10 +5,11 @@
 from datetime import datetime
 from pathlib import Path
 import pytest
-from bs4 import Tag
+from bs4 import Tag, BeautifulSoup
 
 from immo_scrap import nexity, factories
 import pandas as pd
+import requests
 
 
 @pytest.fixture
@@ -296,3 +297,62 @@ def test_save_nexity_biens(tmp_path: Path):
     assert file_path.exists() is True
     parquet = pd.read_parquet(file_path)
     assert parquet.shape == (5, 12)
+
+
+def test_download_soup_from_url(requests_mock):
+    url = "http://test.com"
+    requests_mock.get(url, text="cocorico")
+    res = nexity.download_soup_from_url(url)
+    assert isinstance(res, BeautifulSoup)
+    assert res.text == "cocorico"
+
+
+def test_download_nexity_biens_from_url(nexity_list_html, requests_mock):
+    url = "http://test.com"
+    requests_mock.get(url, content=nexity_list_html)
+    res = nexity.download_nexity_biens_from_url(url)
+    assert isinstance(res, list)
+    assert len(res) == 41
+
+def test_download_and_save_from_url(nexity_list_html, requests_mock, tmp_path:Path):
+    url = "http://test.com"
+    requests_mock.get(url, content=nexity_list_html)
+    file_path = tmp_path / "export.parquet"
+    nexity.download_and_save_nexity_biens_from_url(url, file_path)
+    assert file_path.exists()
+    
+def test_generate_signal_name(freezer):
+    now = datetime(2000,1,1)
+    freezer.move_to(now)
+    
+    res = nexity.generate_signal_name()
+    assert res == "signal_2000_01_01"
+    
+def test_generate_signal_html_filename():
+    res = nexity.generate_signal_html_filename()
+    assert res.endswith(".html")
+    
+def test_save_bytes_to_and_read(tmp_path):
+    path = tmp_path / "file.txt"
+    content = b"toto"
+    nexity.save_bytes_to(content, path)
+    res = nexity.read_bytes_from(path)
+    assert res == content
+    
+def test_download_signal_content(requests_mock):
+    url = "http://test.com"
+    requests_mock.get(url, content=b"coco")
+    nexity.SIGNAL_URL = url
+    res = nexity.download_signal_content()
+    res == b"coco"
+
+def test_download_and_save_signal_html(requests_mock, tmp_path:Path):
+    url = "http://test.com"
+    requests_mock.get(url, content=b"coco")
+    nexity.SIGNAL_URL = url
+    folder_path = tmp_path
+    nexity.download_and_save_signal_html(folder_path)
+    n_files = len(list(tmp_path.iterdir()))
+    assert n_files == 1
+    
+    
