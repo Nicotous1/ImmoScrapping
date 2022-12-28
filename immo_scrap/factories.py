@@ -11,6 +11,7 @@ class NexityBienFactory(factory.Factory):
     class Meta:
         model = nexity.NexityBien
         
+    id = factory.Sequence(str)
     type = fuzzy.FuzzyChoice(nexity.BienType)
     price = fuzzy.FuzzyFloat(10, 900_000, precision=0)
     price_low_tva = None

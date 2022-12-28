@@ -22,6 +22,23 @@ def nexity_table_v2_tag(nexity_list_soup) -> Tag:
     return nexity.extract_tables_from_soup(nexity_list_soup)[1]
 
 
+@pytest.fixture
+def nexity_line_tag(nexity_table_tag) -> Tag:
+    return nexity.extract_elements_from_table(nexity_table_tag)[0]
+
+
+def test_extract_idx_from_line(nexity_line_tag):
+    res = nexity.extract_idx_from_line(nexity_line_tag)
+    assert res == "4161"
+
+
+def test_extract_table_lot_idxs(nexity_table_tag):
+    res = nexity.extract_table_lot_idxs(nexity_table_tag)
+    assert isinstance(res, list)
+    assert len(res) == 8
+    assert res[:3] == ["4161", "4171", "1122"]
+
+
 def test_extract_table_from_soup(nexity_list_soup):
     res = nexity.extract_tables_from_soup(nexity_list_soup)
     assert len(res) == 3
@@ -126,6 +143,7 @@ class Test_NexityBien:
         [
             (
                 {
+                    "id": "3",
                     "Type": "Appartement",
                     "Prix TVA 20%": "303 700 €",
                     "Livraison": "3ème trimestre 2025",
@@ -135,6 +153,7 @@ class Test_NexityBien:
                     "Les +": "",
                 },
                 nexity.NexityLine(
+                    id="3",
                     type=nexity.BienType.APPARTEMENT,
                     price=303_700.00,
                     price_low_tva=None,
@@ -150,6 +169,7 @@ class Test_NexityBien:
             ## Table V2
             (
                 {
+                    "id": "4",
                     "Type": "Appartement",
                     "TVA réduite  (2)": "493 000 €",
                     "Prix TVA 20%": "560 760 €",
@@ -161,6 +181,7 @@ class Test_NexityBien:
                     "Les +": "Balcon",
                 },
                 nexity.NexityLine(
+                    id="4",
                     type=nexity.BienType.APPARTEMENT,
                     price_low_tva=493_000.00,
                     price=560_760.00,
@@ -176,6 +197,7 @@ class Test_NexityBien:
             ## Table V2 avec terasse
             (
                 {
+                    "id": "1451",
                     "Type": "Appartement",
                     "TVA réduite  (2)": "240 000 €",
                     "Prix TVA 20%": "534 600 €",
@@ -187,6 +209,7 @@ class Test_NexityBien:
                     "Les +": "Terasse",
                 },
                 nexity.NexityLine(
+                    id="1451",
                     type=nexity.BienType.APPARTEMENT,
                     price_low_tva=240_000.00,
                     price=534_600.00,
@@ -204,6 +227,16 @@ class Test_NexityBien:
     def test_create_from_dict(self, datas, expected):
         res = nexity.NexityLine.create_from_dict(datas)
         assert res == expected
+
+    def test_create_from_nexity_table_of_date(self, nexity_table):
+        now = datetime(2000, 1, 1)
+        res = nexity.NexityBien.create_from_nexity_table_of_date(nexity_table, now)
+        assert isinstance(res, list)
+        assert len(res) == 8
+        res_1 = res[1]
+        assert isinstance(res_1, nexity.NexityBien)
+        assert res_1.n_pieces == nexity_table.n_pieces
+        assert res_1.date_loaded == now
 
 
 @pytest.mark.parametrize(
@@ -224,6 +257,7 @@ def test_extract_biens_from_table(nexity_table_tag):
     assert isinstance(res, list)
     assert len(res) == 8
     assert isinstance(res[2], nexity.NexityLine)
+    assert res[2].id == "1122"
 
 
 def test_extract_biens_from_table_v2(nexity_table_v2_tag):
@@ -252,20 +286,9 @@ def nexity_table(nexity_table_tag):
 
 @pytest.fixture()
 def nexity_biens(nexity_table):
-    return nexity.NexityBien.create_from_nexity_table(nexity_table)
-
-
-class Test_NexityBien:
-    def test_create_from_nexity_table(self, nexity_table, freezer):
-        now = datetime(2000, 1, 1)
-        freezer.move_to(now)
-        res = nexity.NexityBien.create_from_nexity_table(nexity_table)
-        assert isinstance(res, list)
-        assert len(res) == 8
-        res_1 = res[1]
-        assert isinstance(res_1, nexity.NexityBien)
-        assert res_1.n_pieces == nexity_table.n_pieces
-        assert res_1.date_loaded == now
+    return nexity.NexityBien.create_from_nexity_table_of_date(
+        nexity_table, datetime(2000, 12, 31)
+    )
 
 
 def test_extract_nexity_tables_from_soup(nexity_list_soup):
@@ -279,15 +302,18 @@ def test_extract_nexity_tables_from_soup(nexity_list_soup):
 def test_convert_nexity_biens_to_dataframe(nexity_biens):
     res = nexity.convert_nexity_biens_to_dataframe(nexity_biens)
     assert isinstance(res, pd.DataFrame)
-    assert res.shape == (8, 12)
+    assert res.shape == (8, 13)
+    assert res.iloc[2]["id"] == "1122"
     assert res.iloc[0]["type"] == "Appartement"
     assert res.iloc[0]["orientation"] == "Nord-Ouest"
 
 
 def test_extract_nexity_biens_from_soup(nexity_list_soup):
-    res = nexity.extract_nexity_biens_from_soup(nexity_list_soup)
+    now = datetime(2013, 3, 1)
+    res = nexity.extract_nexity_biens_from_soup(nexity_list_soup, now)
     assert isinstance(res, list)
     assert len(res) == 41
+    assert res[0].date_loaded == now
 
 
 def test_save_nexity_biens(tmp_path: Path):
@@ -296,7 +322,7 @@ def test_save_nexity_biens(tmp_path: Path):
     nexity.save_nexity_biens_to_parquet(biens, file_path)
     assert file_path.exists() is True
     parquet = pd.read_parquet(file_path)
-    assert parquet.shape == (5, 12)
+    assert parquet.shape == (5, 13)
 
 
 def test_download_soup_from_url(requests_mock):
@@ -314,31 +340,36 @@ def test_download_nexity_biens_from_url(nexity_list_html, requests_mock):
     assert isinstance(res, list)
     assert len(res) == 41
 
-def test_download_and_save_from_url(nexity_list_html, requests_mock, tmp_path:Path):
+
+def test_download_and_save_from_url(nexity_list_html, requests_mock, tmp_path: Path):
     url = "http://test.com"
     requests_mock.get(url, content=nexity_list_html)
     file_path = tmp_path / "export.parquet"
     nexity.download_and_save_nexity_biens_from_url(url, file_path)
     assert file_path.exists()
-    
+
+
 def test_generate_signal_name(freezer):
-    now = datetime(2000,1,1)
+    now = datetime(2000, 1, 1)
     freezer.move_to(now)
-    
+
     res = nexity.generate_signal_name()
     assert res == "signal_2000_01_01"
-    
+
+
 def test_generate_signal_html_filename():
     res = nexity.generate_signal_html_filename()
     assert res.endswith(".html")
-    
+
+
 def test_save_bytes_to_and_read(tmp_path):
     path = tmp_path / "file.txt"
     content = b"toto"
     nexity.save_bytes_to(content, path)
     res = nexity.read_bytes_from(path)
     assert res == content
-    
+
+
 def test_download_signal_content(requests_mock):
     url = "http://test.com"
     requests_mock.get(url, content=b"coco")
@@ -346,7 +377,8 @@ def test_download_signal_content(requests_mock):
     res = nexity.download_signal_content()
     res == b"coco"
 
-def test_download_and_save_signal_html(requests_mock, tmp_path:Path):
+
+def test_download_and_save_signal_html(requests_mock, tmp_path: Path):
     url = "http://test.com"
     requests_mock.get(url, content=b"coco")
     nexity.SIGNAL_URL = url
@@ -354,5 +386,79 @@ def test_download_and_save_signal_html(requests_mock, tmp_path:Path):
     nexity.download_and_save_signal_html(folder_path)
     n_files = len(list(tmp_path.iterdir()))
     assert n_files == 1
-    
-    
+
+
+def test_load_biens_from_file(nexity_file_path: Path):
+    dt = datetime(3000, 1, 2)
+    res = nexity.load_biens_from_file_loaded_at(nexity_file_path, dt)
+    assert isinstance(res, list)
+    assert len(res) == 41
+    assert isinstance(res[0], nexity.NexityBien)
+    assert res[0].date_loaded == dt
+
+
+def test_load_biens_from_scrapped_file(tmp_path: Path, nexity_list_html):
+    file = tmp_path / "signal_2019_12_31.html"
+    file.write_bytes(nexity_list_html)
+
+    res = nexity.load_biens_from_scrapped_file(file)
+
+    dt = datetime(2019, 12, 31)
+    assert isinstance(res, list)
+    assert len(res) == 41
+    assert isinstance(res[0], nexity.NexityBien)
+    assert res[0].date_loaded == dt
+
+
+def test_load_biens_from_scrapping_folder(tmp_path: Path, nexity_list_html):
+    scrapping_folder = tmp_path
+    file = scrapping_folder / "signal_2019_12_31.html"
+    file.write_bytes(nexity_list_html)
+    file = scrapping_folder / "signal_2021_12_31.html"
+    file.write_bytes(nexity_list_html)
+
+    res = nexity.load_biens_from_scrapping_folder(scrapping_folder)
+
+    assert isinstance(res, list)
+    assert len(res) == 41 * 2
+    assert {res[0].date_loaded, res[-1].date_loaded} == {
+        datetime(2019, 12, 31),
+        datetime(2021, 12, 31),
+    }
+
+
+def test_extract_files_of_ext_from_folder(tmp_path: Path):
+    print(tmp_path)
+    file_1 = tmp_path / "file_1.html"
+    file_1.touch()
+    file_other = tmp_path / "file_2.ext"
+    file_other.touch()
+    file_2 = tmp_path / "file_2.html"
+    file_2.touch()
+    res = nexity.extract_files_of_ext_from_folder(tmp_path, "html")
+    assert set(res) == {file_1, file_2}
+
+
+def test_export_biens_from_scrapping_folder_to_parquet(
+    tmp_path: Path, nexity_list_html
+):
+    scrapping_folder = tmp_path
+    file = scrapping_folder / "signal_2019_12_31.html"
+    file.write_bytes(nexity_list_html)
+    file = scrapping_folder / "signal_2021_12_31.html"
+    file.write_bytes(nexity_list_html)
+
+    parquet_file = tmp_path / "export.parquet"
+
+    nexity.export_biens_from_scrapping_folder_to_parquet(scrapping_folder, parquet_file)
+
+    df_exports = pd.read_parquet(parquet_file)
+    assert df_exports.shape == (41 * 2, 13)
+
+
+def test_export_biens_from_scrapping_folder_to_std_parquet(tmp_path: Path):
+    scrapping_folder = tmp_path
+    path_expected = scrapping_folder / "export.parquet"
+    assert not path_expected.is_file()
+    nexity.export_biens_from_scrapping_folder_to_std_parquet(scrapping_folder)
+    assert path_expected.is_file()

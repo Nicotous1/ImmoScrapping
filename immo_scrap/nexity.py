@@ -102,6 +102,7 @@ def convert_n_inclus_str_to_int(n_inclus_str: str) -> int:
 
 @dataclass
 class NexityLine:
+    id: str
     type: BienType
     price: float
     price_low_tva: Union[None, float]
@@ -158,6 +159,7 @@ class NexityLine:
     @classmethod
     def create_from_dict(cls, datas: Dict[str, Any]):
         return NexityLine(
+            id=datas["id"],
             type=cls.extract_type(datas),
             price=cls.extract_price(datas),
             price_low_tva=cls.extract_price_low_tva(datas),
@@ -172,12 +174,49 @@ class NexityLine:
 
 
 def extract_biens_from_table(table: Tag) -> List[NexityLine]:
+    biens_dict = extract_line_dict_from_table(table)
+    res = [NexityLine.create_from_dict(bien_dict) for bien_dict in biens_dict]
+    return res
+
+
+def extract_line_dict_from_table(table: Tag) -> List[Dict[str, str]]:
+    """Data from the table value but also hidden info like idx"""
+    table_dicts = extract_table_dicts_from_table(table)
+    add_idxs_to_table_dicts_from_table(table, table_dicts)
+    return table_dicts
+
+
+def extract_table_dicts_from_table(table: Tag) -> List[Dict[str, str]]:
+    """Only the value from the table itself"""
     columns = extract_columns_name_from_table(table)
     values = extract_elements_values_from_table(table)
-    res = [
-        NexityLine.create_from_dict(dict(zip(columns, values_i))) for values_i in values
-    ]
-    return res
+    table_dicts = [(dict(zip(columns, values_i))) for values_i in values]
+    return table_dicts
+
+
+def add_idxs_to_table_dicts_from_table(
+    table: Tag, table_dicts: List[Dict[str, str]]
+) -> None:
+    idxs = extract_table_lot_idxs(table)
+    for idx, table_dict in zip(idxs, table_dicts):
+        table_dict["id"] = idx
+
+
+def extract_idx_from_title(title: str) -> str:
+    idx_str = title.strip().replace(" ", "")[3:]
+    return idx_str
+
+
+def extract_idx_from_line(line: Tag) -> str:
+    first_cell = line.select(".cell")[0]
+    first_cell_title: str = first_cell["title"]  # type:ignore
+    idx = extract_idx_from_title(first_cell_title)
+    return idx
+
+
+def extract_table_lot_idxs(table: Tag) -> List[str]:
+    lines = extract_elements_from_table(table)
+    return [extract_idx_from_line(line) for line in lines]
 
 
 @dataclass
@@ -206,6 +245,7 @@ def extract_nexity_tables_from_soup(soup: BeautifulSoup) -> List[NexityTable]:
 
 @dataclass
 class NexityBien:
+    id: str
     type: BienType
     price: float
     price_low_tva: Union[None, float]
@@ -220,10 +260,12 @@ class NexityBien:
     date_loaded: datetime
 
     @classmethod
-    def create_from_nexity_table(cls, table: NexityTable) -> List["NexityBien"]:
+    def create_from_nexity_table_of_date(
+        cls, table: NexityTable, date_loaded: datetime
+    ) -> List["NexityBien"]:
         return [
             NexityBien(
-                date_loaded=datetime.now(), n_pieces=table.n_pieces, **bien.__dict__
+                date_loaded=date_loaded, n_pieces=table.n_pieces, **bien.__dict__
             )
             for bien in table.biens
         ]
@@ -231,6 +273,8 @@ class NexityBien:
 
 def convert_nexity_biens_to_dataframe(biens: List[NexityBien]) -> pd.DataFrame:
     biens_dict = [bien.__dict__ for bien in biens]
+    if len(biens_dict) == 0:
+        return pd.DataFrame()
     df = pd.DataFrame.from_records(biens_dict)
     cols_enum = ["type", "orientation"]
     for col_enum in cols_enum:
@@ -238,11 +282,13 @@ def convert_nexity_biens_to_dataframe(biens: List[NexityBien]) -> pd.DataFrame:
     return df
 
 
-def extract_nexity_biens_from_soup(soup: BeautifulSoup) -> List[NexityBien]:
+def extract_nexity_biens_from_soup(
+    soup: BeautifulSoup, date_loaded: datetime
+) -> List[NexityBien]:
     tables = extract_nexity_tables_from_soup(soup)
     biens = []
     for table in tables:
-        nexity_biens_i = NexityBien.create_from_nexity_table(table)
+        nexity_biens_i = NexityBien.create_from_nexity_table_of_date(table, date_loaded)
         biens += nexity_biens_i
     return biens
 
@@ -262,9 +308,16 @@ def download_soup_from_url(url: str) -> BeautifulSoup:
     return soup
 
 
+def download_soup_from_file(file: Path) -> BeautifulSoup:
+    res = read_bytes_from(file)
+    soup = BeautifulSoup(res)
+    return soup
+
+
 def download_nexity_biens_from_url(url: str) -> List[NexityBien]:
     soup = download_soup_from_url(url)
-    biens = extract_nexity_biens_from_soup(soup)
+    date_loaded = datetime.now()
+    biens = extract_nexity_biens_from_soup(soup, date_loaded)
     return biens
 
 
@@ -313,3 +366,69 @@ def download_and_save_signal_html(folder_path: Path) -> None:
     url = SIGNAL_URL
     file_path = folder_path / generate_signal_html_filename()
     download_and_save_url_html(url, file_path)
+
+
+def extract_date_loaded_from_file(file: Path) -> datetime:
+    date_str = file.stem[-10:]
+    date_loaded = datetime.strptime(date_str, "%Y_%m_%d")
+    return date_loaded
+
+
+def load_biens_from_file_loaded_at(
+    file: Path, date_loaded: datetime
+) -> List[NexityBien]:
+    print(f"Loading biens from {file.name} extracted at {date_loaded}...")
+    soup = download_soup_from_file(file)
+    biens = extract_nexity_biens_from_soup(soup, date_loaded)
+    print("Done")
+    return biens
+
+
+def load_biens_from_scrapped_file(file: Path) -> List[NexityBien]:
+    date_loaded = extract_date_loaded_from_file(file)
+    biens = load_biens_from_file_loaded_at(file, date_loaded)
+    return biens
+
+
+def check_if_file_has_ext(file: Path, ext: str) -> bool:
+    return file.suffix.lower() == f".{ext}"
+
+
+def extract_files_of_ext_from_folder(folder: Path, ext: str) -> List[Path]:
+    res = []
+    for file in folder.iterdir():
+        if file.is_file() and check_if_file_has_ext(file, ext):
+            res.append(file)
+    return res
+
+
+def extract_html_files_from_folder(folder: Path) -> List[Path]:
+    return extract_files_of_ext_from_folder(folder, "html")
+
+
+def load_biens_from_scrapping_folder(folder: Path) -> List[NexityBien]:
+    res = []
+    for file in extract_html_files_from_folder(folder):
+        res += load_biens_from_scrapped_file(file)
+    return res
+
+
+def save_parquet(df: pd.DataFrame, file: Path) -> None:
+    n_rows, n_columns = df.shape
+    print(
+        f"Saving to parquet {n_rows:,.0f} rows with {n_columns:,.0f} columns at {file.name}"
+    )
+    df.to_parquet(file)
+
+
+def export_biens_from_scrapping_folder_to_parquet(
+    scrapping_folder: Path, parquet_file: Path
+) -> None:
+    biens = load_biens_from_scrapping_folder(scrapping_folder)
+    biens_df = convert_nexity_biens_to_dataframe(biens)
+    save_parquet(biens_df, parquet_file)
+
+
+def export_biens_from_scrapping_folder_to_std_parquet(scrapping_folder: Path) -> None:
+    parquet_file = scrapping_folder / "export.parquet"
+    export_biens_from_scrapping_folder_to_parquet(scrapping_folder, parquet_file)
