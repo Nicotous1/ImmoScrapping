@@ -302,15 +302,19 @@ def download_content_from_url(url: str) -> bytes:
     return requests.get(url).content
 
 
+def create_beautiful_soup_from_html_bytes(data: bytes) -> BeautifulSoup:
+    return BeautifulSoup(data, features="html.parser")
+
+
 def download_soup_from_url(url: str) -> BeautifulSoup:
     res = download_content_from_url(url)
-    soup = BeautifulSoup(res)
+    soup = create_beautiful_soup_from_html_bytes(res)
     return soup
 
 
 def download_soup_from_file(file: Path) -> BeautifulSoup:
     res = read_bytes_from(file)
-    soup = BeautifulSoup(res)
+    soup = create_beautiful_soup_from_html_bytes(res)
     return soup
 
 
