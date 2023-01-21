@@ -12,3 +12,6 @@ black==21.7b0
 factory_boy
 requests_mock
 pytest-freezegun
+boto3-mocking
+botocore-stubs
+boto3-stubs
