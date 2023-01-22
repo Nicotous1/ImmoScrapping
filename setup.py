@@ -19,7 +19,7 @@ requirements: List[str] = [
     "pyarrow",
     "boto3",
     "bs4",
-    "chardet",,
+    "chardet",
 ]
 
 test_requirements = [

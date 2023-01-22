@@ -4,7 +4,7 @@ from pathlib import Path
 from immo_scrap import aws
 
 name = "nexity-web-scrapping"
-bucket = aws.load_bucket(name)
+bucket = aws.create_bucket_from_name(name)
 
 # %%
 backup_folder = Path("C:\\Users\\ntous\\Desktop\\Codes\\ImmoScrapping\\devs")
