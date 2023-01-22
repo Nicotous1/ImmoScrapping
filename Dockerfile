@@ -8,9 +8,6 @@ COPY ./HISTORY.rst /app/HISTORY.rst
 COPY ./setup.py /app/setup.py
 RUN pip3 install .
 
-COPY ./downloads/ /app/downloads/
-COPY ./devs/ /app/devs/
-
-COPY ./devs/aws_lambda.py ${LAMBDA_TASK_ROOT}
+COPY ./aws/aws_lambda.py ${LAMBDA_TASK_ROOT}
 
 CMD [ "aws_lambda.lambda_handler" ] 

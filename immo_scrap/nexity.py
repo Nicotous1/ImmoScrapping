@@ -10,6 +10,8 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup, ResultSet, Tag
 
+from immo_scrap import analysis
+
 
 def extract_tables_from_soup(soup: BeautifulSoup) -> ResultSet:
     return soup.select(".product--lots-details .content")
@@ -26,10 +28,19 @@ def extract_title_from_table(table: Tag) -> str:
 
 def extract_n_theoric_from_table(table: Tag) -> int:
     header = extract_table_header(table)
-    text_dispo = header.select(".text--dispo")[0].text.strip()
-    n_dispo_str = text_dispo.split(" ")[0]
-    n_dispo_int = int(n_dispo_str)
+    n_dispo_str = header.select(".text--dispo")[0].text
+    n_dispo_int = convert_n_theoric_str_to_int(n_dispo_str)
     return n_dispo_int
+
+
+def convert_n_theoric_str_to_int(s: str) -> int:
+    s = s.strip().lower()
+    s_splitted = s.split(" ")
+    if s.startswith("plus"):
+        s_int = s_splitted[2]
+    else:
+        s_int = s_splitted[0]
+    return int(s_int)
 
 
 def extract_columns_name_from_table(table: Tag) -> List[str]:
@@ -126,7 +137,11 @@ class NexityLine:
     @staticmethod
     def extract_price_low_tva(datas: Dict[str, Any]) -> Union[None, float]:
         key = "TVA réduite  (2)"
-        return convert_price_str_to_float(datas[key]) if key in datas else None
+        price_low_tva_str = datas.get(key, "").strip()
+        if (price_low_tva_str == "-") | (price_low_tva_str == ""):
+            return None
+        else:
+            return convert_price_str_to_float(price_low_tva_str)
 
     @staticmethod
     def extract_size(datas: Dict[str, Any]) -> int:
@@ -331,16 +346,17 @@ def download_and_save_nexity_biens_from_url(url: str, path: Path) -> None:
     save_nexity_biens_to_parquet(biens, path)
 
 
-def generate_signal_stem() -> str:
-    now = datetime.today().date()
-    return generate_signal_stem_for_date(now)
-
-
 NEXITY_FILE_PREFIX = "signal_"
 
 
-def generate_signal_stem_for_date(now: date) -> str:
-    return f"{NEXITY_FILE_PREFIX}{now:%Y_%m_%d}"
+def generate_signal_stem_for_date(dt: date) -> str:
+    return f"{NEXITY_FILE_PREFIX}{dt:%Y_%m_%d}"
+
+
+def generate_signal_html_filename_for_dt(dt: date) -> str:
+    stem = generate_signal_stem_for_date(dt)
+    file_name = f"{stem}.html"
+    return file_name
 
 
 def extract_date_from_signal_stem(stem: str) -> date:
@@ -353,10 +369,18 @@ def extract_date_from_signal_html_file(name: str) -> date:
     return extract_date_from_signal_stem(stem)
 
 
-def generate_signal_html_filename() -> str:
-    stem = generate_signal_stem()
-    file_name = f"{stem}.html"
-    return file_name
+def generate_today() -> date:
+    return datetime.now().date()
+
+
+def create_NexityFile_for_today_and_folder(folder: Path) -> "NexityFile":
+    today = generate_today()
+    return create_NexityFile_from_dt_and_folder(today, folder)
+
+
+def create_NexityFile_from_dt_and_folder(dt: date, folder: Path) -> "NexityFile":
+    file = folder / generate_signal_html_filename_for_dt(dt)
+    return NexityFile(file, dt)
 
 
 def save_bytes_to(content: bytes, path: Path) -> None:
@@ -384,10 +408,10 @@ def download_and_save_url_html(url: str, path: Path) -> None:
     save_bytes_to(content, path)
 
 
-def download_and_save_signal_html(folder_path: Path) -> None:
-    url = SIGNAL_URL
-    file_path = folder_path / generate_signal_html_filename()
-    download_and_save_url_html(url, file_path)
+def download_and_save_signal_html(folder: Path) -> "NexityFile":
+    file = create_NexityFile_for_today_and_folder(folder)
+    download_and_save_url_html(SIGNAL_URL, file.path)
+    return file
 
 
 def extract_date_loaded_from_file(file: Path) -> datetime:
@@ -410,6 +434,13 @@ def load_biens_from_scrapped_file(file: Path) -> List[NexityBien]:
     date_loaded = extract_date_loaded_from_file(file)
     biens = load_biens_from_file_loaded_at(file, date_loaded)
     return biens
+
+
+def load_snapshot_df_from_scrapped_file(file: Path) -> analysis.SnapshotDF:
+    date_loaded = extract_date_loaded_from_file(file)
+    biens = load_biens_from_file_loaded_at(file, date_loaded)
+    biens_df = convert_nexity_biens_to_dataframe(biens)
+    return analysis.SnapshotDF(biens_df, date_loaded.date())
 
 
 def check_if_file_has_ext(file: Path, ext: str) -> bool:
@@ -446,9 +477,23 @@ def save_parquet(df: pd.DataFrame, file: Path) -> None:
 def export_biens_from_scrapping_folder_to_parquet(
     scrapping_folder: Path, parquet_file: Path
 ) -> None:
+    biens_df = load_scrapping_folder_to_dataframe(scrapping_folder)
+    save_parquet(biens_df, parquet_file)
+
+
+def load_scrapping_folder_to_dataframe(scrapping_folder: Path) -> pd.DataFrame:
     biens = load_biens_from_scrapping_folder(scrapping_folder)
     biens_df = convert_nexity_biens_to_dataframe(biens)
-    save_parquet(biens_df, parquet_file)
+    return biens_df
+
+
+def load_scrapping_folder_to_snapshot_df_list(
+    scrapping_folder: Path,
+) -> List[analysis.SnapshotDF]:
+    res = []
+    for file in extract_html_files_from_folder(scrapping_folder):
+        res.append(load_snapshot_df_from_scrapped_file(file))
+    return res
 
 
 def export_biens_from_scrapping_folder_to_std_parquet(scrapping_folder: Path) -> None:

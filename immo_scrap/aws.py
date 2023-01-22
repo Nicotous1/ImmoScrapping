@@ -220,9 +220,23 @@ def iter_nexity_s3_file_of_bucket(bucket: S3Bucket) -> Iterable[NexityS3File]:
 
 from immo_scrap import histories, nexity
 
+NEXITY_S3_OS_HISTORY = histories.ShortHistory[Union[NexityS3File, nexity.NexityFile]]
+
 
 def create_history_from_s3_bucket_and_current_file(
     bucket: S3Bucket, current: nexity.NexityFile
-) -> histories.ShortHistory[Union[NexityS3File, nexity.NexityFile]]:
+) -> NEXITY_S3_OS_HISTORY:
     s3_files = iter_nexity_s3_file_of_bucket(bucket)
     return histories.create_short_history_from_iterable(current, s3_files)
+
+
+def download_if_nexity_s3file(folder: Path, data: Any) -> None:
+    if isinstance(data, NexityS3File):
+        data.s3_file.download_to_folder(folder)
+
+
+def download_history_previous_and_orignal_to_folder(
+    history: NEXITY_S3_OS_HISTORY, folder: Path
+) -> None:
+    download_if_nexity_s3file(folder, history.previous)
+    download_if_nexity_s3file(folder, history.original)

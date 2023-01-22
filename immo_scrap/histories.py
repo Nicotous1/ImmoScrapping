@@ -63,3 +63,26 @@ def create_short_history_from_iterable(
         original = select_if_older_than(item, original)
         previous = select_if_previous_than(item, previous, current)
     return ShortHistory(current, previous, original)
+
+
+def create_short_history_from_iterable_and_newest_as_current(
+    items: Iterable[D],
+) -> ShortHistory[D]:
+    last_item = extract_newest(items)
+    return create_short_history_from_iterable(last_item, items)
+
+
+def select_if_newest_than(dt: D, current: D) -> D:
+    if dt.date > current.date:
+        return dt
+    return current
+
+
+def extract_newest(items: Iterable[D]) -> D:
+    item_max: Union[D, None] = None
+    for item in items:
+        if item_max is None or (item.date > item_max.date):
+            item_max = item
+    if item_max is None:
+        raise ValueError("Please provide at least one item")
+    return item_max
