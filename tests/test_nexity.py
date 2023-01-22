@@ -350,11 +350,11 @@ def test_download_and_save_from_url(nexity_list_html, requests_mock, tmp_path: P
     assert file_path.exists()
 
 
-def test_generate_signal_name(freezer):
+def test_generate_signal_stem(freezer):
     now = datetime(2000, 1, 1)
     freezer.move_to(now)
 
-    res = nexity.generate_signal_name()
+    res = nexity.generate_signal_stem()
     assert res == "signal_2000_01_01"
 
 
@@ -465,8 +465,15 @@ def test_export_biens_from_scrapping_folder_to_std_parquet(tmp_path: Path):
     assert path_expected.is_file()
 
 
-def test_extract_date_from_signal_name():
+def test_extract_date_from_signal_stem():
     dt = date(2015, 1, 12)
-    name = nexity.generate_signal_name_for_date(dt)
-    dt_extracted = nexity.extract_date_from_signal_name(name)
+    stem = nexity.generate_signal_stem_for_date(dt)
+    dt_extracted = nexity.extract_date_from_signal_stem(stem)
     assert dt == dt_extracted
+
+
+def test_extract_date_from_signal_html_file():
+    signal_html_file = "signal_2022_09_12.html"
+    expected = date(2022, 9, 12)
+    dt_extracted = nexity.extract_date_from_signal_html_file(signal_html_file)
+    assert expected == dt_extracted

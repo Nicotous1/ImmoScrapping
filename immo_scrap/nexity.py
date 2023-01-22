@@ -331,15 +331,15 @@ def download_and_save_nexity_biens_from_url(url: str, path: Path) -> None:
     save_nexity_biens_to_parquet(biens, path)
 
 
-def generate_signal_name() -> str:
+def generate_signal_stem() -> str:
     now = datetime.today().date()
-    return generate_signal_name_for_date(now)
+    return generate_signal_stem_for_date(now)
 
 
 NEXITY_FILE_PREFIX = "signal_"
 
 
-def generate_signal_name_for_date(now: date) -> str:
+def generate_signal_stem_for_date(now: date) -> str:
     return f"{NEXITY_FILE_PREFIX}{now:%Y_%m_%d}"
 
 
@@ -354,8 +354,8 @@ def extract_date_from_signal_html_file(name: str) -> date:
 
 
 def generate_signal_html_filename() -> str:
-    base_name = generate_signal_name()
-    file_name = f"{base_name}.html"
+    stem = generate_signal_stem()
+    file_name = f"{stem}.html"
     return file_name
 
 
