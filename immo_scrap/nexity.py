@@ -1,13 +1,14 @@
-from dataclasses import dataclass
 import dataclasses
-from datetime import datetime
-from enum import Enum
 import json
+from dataclasses import dataclass
+from datetime import date, datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Union
+
 import pandas as pd
-from bs4 import BeautifulSoup, ResultSet, Tag
 import requests
+from bs4 import BeautifulSoup, ResultSet, Tag
 
 
 def extract_tables_from_soup(soup: BeautifulSoup) -> ResultSet:
@@ -331,8 +332,20 @@ def download_and_save_nexity_biens_from_url(url: str, path: Path) -> None:
 
 
 def generate_signal_name() -> str:
-    now = datetime.now()
-    return f"signal_{now:%Y_%m_%d}"
+    now = datetime.today().date()
+    return generate_signal_name_for_date(now)
+
+
+NEXITY_FILE_PREFIX = "signal_"
+
+
+def generate_signal_name_for_date(now: date) -> str:
+    return f"{NEXITY_FILE_PREFIX}{now:%Y_%m_%d}"
+
+
+def extract_date_from_signal_name(name: str) -> date:
+    date_str = name[len(NEXITY_FILE_PREFIX) :]
+    return datetime.strptime(date_str, "%Y_%m_%d").date()
 
 
 def generate_signal_html_filename() -> str:

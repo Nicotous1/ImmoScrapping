@@ -1,8 +1,11 @@
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Generic, Iterable, Protocol, TypeVar
 
 import boto3
+
+from immo_scrap import nexity
 
 REGION_NAME: str = "eu-west-3"
 ME_EMAIL: str = "ntoussai29@gmail.com"
@@ -196,3 +199,20 @@ def upload_new_htmls_to_nexity_bucket(folder: Path) -> None:
     bucket = create_nexity_bucket()
     html_files = iter_extension_of_folder(folder, "html")
     bucket.upload_files_missing_from_root(html_files)
+
+
+@dataclass
+class NexityS3File:
+    s3_file: S3File
+    date: date
+
+
+def create_NexityS3File_from_s3_file(file: S3File) -> NexityS3File:
+    name = file.key
+    date = nexity.extract_date_from_signal_name(name)
+    return NexityS3File(file, date)
+
+
+def iter_file_of_nexity_bucket(bucket: S3Bucket) -> Iterable[NexityS3File]:
+    for signal_s3_file in bucket.iter_files_prefixed(nexity.NEXITY_FILE_PREFIX):
+        yield create_NexityS3File_from_s3_file(signal_s3_file)

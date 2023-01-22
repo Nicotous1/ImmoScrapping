@@ -2,14 +2,15 @@
 
 """Tests for `immo_scrap` package."""
 
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
-import pytest
-from bs4 import Tag, BeautifulSoup
 
-from immo_scrap import nexity, factories
 import pandas as pd
+import pytest
 import requests
+from bs4 import BeautifulSoup, Tag
+
+from immo_scrap import factories, nexity
 
 
 @pytest.fixture
@@ -462,3 +463,10 @@ def test_export_biens_from_scrapping_folder_to_std_parquet(tmp_path: Path):
     assert not path_expected.is_file()
     nexity.export_biens_from_scrapping_folder_to_std_parquet(scrapping_folder)
     assert path_expected.is_file()
+
+
+def test_extract_date_from_signal_name():
+    dt = date(2015, 1, 12)
+    name = nexity.generate_signal_name_for_date(dt)
+    dt_extracted = nexity.extract_date_from_signal_name(name)
+    assert dt == dt_extracted
