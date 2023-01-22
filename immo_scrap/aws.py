@@ -158,7 +158,8 @@ class S3File:
         return cls.creat_from_bucket_and_key(bucket, key)
 
     def download_to(self, path: Path) -> None:
-        self.aws.download_file(path)
+        print(f"{self.key} download to -> {path}")
+        self.aws.download_file(str(path))
 
     def download_to_folder(self, folder: Path) -> None:
         path = folder / self.key
