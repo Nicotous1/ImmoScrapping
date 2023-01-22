@@ -111,7 +111,7 @@ class S3Bucket:
 
     def upload_folder_files_missing_from_root(self, folder: Path) -> None:
         return self.upload_files_missing_from_root(folder.iterdir())
-            
+
     def upload_files_missing_from_root(self, files: Iterable[Path]) -> None:
         for source in files:
             s3_file = S3File.create_root_file_for_bucket_from_path(self, source)
@@ -178,18 +178,21 @@ def create_bucket_from_name(name: str) -> S3Bucket:
     bucket = s3.Bucket(name)
     return S3Bucket(name, bucket)
 
-NEXITY_S3_NAME:str = "nexity-web-scrapping"
 
-def create_nexity_bucket()->S3Bucket:
+NEXITY_S3_NAME: str = "nexity-web-scrapping"
+
+
+def create_nexity_bucket() -> S3Bucket:
     return create_bucket_from_name(NEXITY_S3_NAME)
 
-def iter_extension_of_folder(folder:Path, ext:str)->Iterable[Path]:
+
+def iter_extension_of_folder(folder: Path, ext: str) -> Iterable[Path]:
     for file in folder.iterdir():
         if file.is_file() and file.suffix.lower() == f".{ext.lower()}":
             yield file
 
-def sync_html_from_folder_to_nexity_bucket(folder:Path)->None:
+
+def upload_new_htmls_to_nexity_bucket(folder: Path) -> None:
     bucket = create_nexity_bucket()
     html_files = iter_extension_of_folder(folder, "html")
     bucket.upload_files_missing_from_root(html_files)
-
