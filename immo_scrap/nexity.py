@@ -343,9 +343,14 @@ def generate_signal_name_for_date(now: date) -> str:
     return f"{NEXITY_FILE_PREFIX}{now:%Y_%m_%d}"
 
 
-def extract_date_from_signal_name(name: str) -> date:
-    date_str = name[len(NEXITY_FILE_PREFIX) :]
+def extract_date_from_signal_stem(stem: str) -> date:
+    date_str = stem[len(NEXITY_FILE_PREFIX) :]
     return datetime.strptime(date_str, "%Y_%m_%d").date()
+
+
+def extract_date_from_signal_html_file(name: str) -> date:
+    stem = name[:-5]
+    return extract_date_from_signal_stem(stem)
 
 
 def generate_signal_html_filename() -> str:
@@ -449,3 +454,9 @@ def export_biens_from_scrapping_folder_to_parquet(
 def export_biens_from_scrapping_folder_to_std_parquet(scrapping_folder: Path) -> None:
     parquet_file = scrapping_folder / "export.parquet"
     export_biens_from_scrapping_folder_to_parquet(scrapping_folder, parquet_file)
+
+
+@dataclass
+class NexityFile:
+    path: Path
+    date: date

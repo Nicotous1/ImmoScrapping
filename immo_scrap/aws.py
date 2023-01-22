@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
-from typing import Any, Generic, Iterable, Protocol, TypeVar
+from typing import Any, Generic, Iterable, Protocol, TypeVar, Union
 
 import boto3
 
@@ -209,10 +209,20 @@ class NexityS3File:
 
 def create_NexityS3File_from_s3_file(file: S3File) -> NexityS3File:
     name = file.key
-    date = nexity.extract_date_from_signal_name(name)
+    date = nexity.extract_date_from_signal_html_file(name)
     return NexityS3File(file, date)
 
 
-def iter_file_of_nexity_bucket(bucket: S3Bucket) -> Iterable[NexityS3File]:
+def iter_nexity_s3_file_of_bucket(bucket: S3Bucket) -> Iterable[NexityS3File]:
     for signal_s3_file in bucket.iter_files_prefixed(nexity.NEXITY_FILE_PREFIX):
         yield create_NexityS3File_from_s3_file(signal_s3_file)
+
+
+from immo_scrap import histories, nexity
+
+
+def create_history_from_s3_bucket_and_current_file(
+    bucket: S3Bucket, current: nexity.NexityFile
+) -> histories.ShortHistory[Union[NexityS3File, nexity.NexityFile]]:
+    s3_files = iter_nexity_s3_file_of_bucket(bucket)
+    return histories.create_short_history_from_iterable(current, s3_files)

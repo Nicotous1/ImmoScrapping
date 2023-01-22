@@ -105,3 +105,11 @@ def test_create_short_history_from_iterable():
     expected = histories.ShortHistory(current, previous, original)
     res = histories.create_short_history_from_iterable(current, items)
     assert res == expected
+
+
+def test_create_short_history_from_iterable_with_no_items():
+    current = create_date_object(date(2020, 12, 25))
+    items = []
+    expected = histories.ShortHistory(current, None, current)
+    res = histories.create_short_history_from_iterable(current, items)
+    assert res == expected
