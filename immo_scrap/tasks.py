@@ -13,7 +13,7 @@ def analyse_and_send_mail_if_needed(folder: Path) -> None:
         history_snaps_df
     )
     print(analysis.format_GlobalAnalysis_title(global_analysis))
-    print("Send mail")
+    print("Sending mail")
     mails.send_analysis_if_sold_or_new(global_analysis)
 
 
