@@ -14,7 +14,8 @@ env:
     ECR_REPOSITORY: "immo_scrap"
 
 jobs:
-    build:
+    test:
+        name: Run python test on immo_scrap
         runs-on: ubuntu-latest
         strategy:
             fail-fast: false
@@ -35,8 +36,8 @@ jobs:
               run: |
                   pytest
 
-    deploy:
-        name: Deploy
+    build_deploy:
+        name: Build and Deploy Lambda Image
         runs-on: ubuntu-latest
         environment: production
 
