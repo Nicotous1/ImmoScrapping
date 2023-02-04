@@ -78,6 +78,7 @@ def extract_dataframe_from_table(table: Tag) -> pd.DataFrame:
 
 
 class BienType(Enum):
+    STUDIO = "Studio"
     APPARTEMENT = "Appartement"
 
 
@@ -85,6 +86,7 @@ class Orientation(Enum):
     NORTH_WEST = "Nord-Ouest"
     SOUTH_EAST = "Sud-Est"
     SOUTH_WEST = "Sud-Ouest"
+    NORTH_EAST = "Nord-Est"
 
 
 def convert_price_str_to_float(price: str) -> float:

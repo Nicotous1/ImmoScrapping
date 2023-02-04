@@ -82,6 +82,29 @@ def test_extract_columns_name_from_table(nexity_table_tag):
     ]
 
 
+@pytest.mark.parametrize(
+    "input, expected",
+    [("Appartement", nexity.BienType.APPARTEMENT), ("Studio", nexity.BienType.STUDIO)],
+)
+def test_extract_type(input: str, expected):
+    datas = {"Type": input}
+    res = nexity.NexityLine.extract_type(datas)
+    assert res == expected
+
+
+@pytest.mark.parametrize(
+    "input, expected",
+    [
+        ("Sud-Ouest", nexity.Orientation.SOUTH_WEST),
+        ("Nord-Est", nexity.Orientation.NORTH_EAST),
+    ],
+)
+def test_extract_orientation(input: str, expected):
+    datas = {"Orientation": input}
+    res = nexity.NexityLine.extract_orientation(datas)
+    assert res == expected
+
+
 def test_extract_columns_name_from_table_v2(nexity_table_v2_tag):
     res = nexity.extract_columns_name_from_table(nexity_table_v2_tag)
     assert res == [
