@@ -2,14 +2,15 @@
 
 """Tests for `immo_scrap` package."""
 
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
-import pytest
-from bs4 import Tag, BeautifulSoup
 
-from immo_scrap import nexity, factories
 import pandas as pd
+import pytest
 import requests
+from bs4 import BeautifulSoup, Tag
+
+from immo_scrap import factories, nexity
 
 
 @pytest.fixture
@@ -55,6 +56,19 @@ def test_extract_n_theoric_from_table(nexity_table_tag):
     assert res == 8
 
 
+@pytest.mark.parametrize(
+    "n_theo_str, expected",
+    [
+        ("8 lots disponibles", 8),
+        (" 5 lots disponibles  ", 5),
+        ("Plus que 4 lots disponibles !", 4),
+    ],
+)
+def test_convert_n_theoric_str_to_int(n_theo_str, expected):
+    res = nexity.convert_n_theoric_str_to_int(n_theo_str)
+    assert res == expected
+
+
 def test_extract_columns_name_from_table(nexity_table_tag):
     res = nexity.extract_columns_name_from_table(nexity_table_tag)
     assert res == [
@@ -66,6 +80,29 @@ def test_extract_columns_name_from_table(nexity_table_tag):
         "Orientation",
         "Les +",
     ]
+
+
+@pytest.mark.parametrize(
+    "input, expected",
+    [("Appartement", nexity.BienType.APPARTEMENT), ("Studio", nexity.BienType.STUDIO)],
+)
+def test_extract_type(input: str, expected):
+    datas = {"Type": input}
+    res = nexity.NexityLine.extract_type(datas)
+    assert res == expected
+
+
+@pytest.mark.parametrize(
+    "input, expected",
+    [
+        ("Sud-Ouest", nexity.Orientation.SOUTH_WEST),
+        ("Nord-Est", nexity.Orientation.NORTH_EAST),
+    ],
+)
+def test_extract_orientation(input: str, expected):
+    datas = {"Orientation": input}
+    res = nexity.NexityLine.extract_orientation(datas)
+    assert res == expected
 
 
 def test_extract_columns_name_from_table_v2(nexity_table_v2_tag):
@@ -222,6 +259,33 @@ class Test_NexityBien:
                     n_parking=4,
                 ),
             ),
+            ## No TVA
+            (
+                {
+                    "Type": "Appartement",
+                    "TVA réduite  (2)": "-",
+                    "Prix TVA 20%": "327 590 €",
+                    "Livraison": "4ème trimestre 2025",
+                    "Surface": "48 m²",
+                    "Étage": "Étage 16",
+                    "Orientation": "Nord-Ouest",
+                    "Les +": "",
+                    "id": "1162",
+                },
+                nexity.NexityLine(
+                    id="1162",
+                    type=nexity.BienType.APPARTEMENT,
+                    price_low_tva=None,
+                    price=327_590.00,
+                    date_livraison="4ème trimestre 2025",
+                    size=48,
+                    floor=16,
+                    orientation=nexity.Orientation.NORTH_WEST,
+                    has_balcony=False,
+                    has_terasse=False,
+                    n_parking=0,
+                ),
+            ),
         ],
     )
     def test_create_from_dict(self, datas, expected):
@@ -349,16 +413,17 @@ def test_download_and_save_from_url(nexity_list_html, requests_mock, tmp_path: P
     assert file_path.exists()
 
 
-def test_generate_signal_name(freezer):
+def test_today(freezer):
     now = datetime(2000, 1, 1)
     freezer.move_to(now)
 
-    res = nexity.generate_signal_name()
-    assert res == "signal_2000_01_01"
+    res = nexity.generate_today()
+    assert res == now.date()
 
 
 def test_generate_signal_html_filename():
-    res = nexity.generate_signal_html_filename()
+    dt = date(2000, 1, 1)
+    res = nexity.generate_signal_html_filename_for_dt(dt)
     assert res.endswith(".html")
 
 
@@ -462,3 +527,17 @@ def test_export_biens_from_scrapping_folder_to_std_parquet(tmp_path: Path):
     assert not path_expected.is_file()
     nexity.export_biens_from_scrapping_folder_to_std_parquet(scrapping_folder)
     assert path_expected.is_file()
+
+
+def test_extract_date_from_signal_stem():
+    dt = date(2015, 1, 12)
+    stem = nexity.generate_signal_stem_for_date(dt)
+    dt_extracted = nexity.extract_date_from_signal_stem(stem)
+    assert dt == dt_extracted
+
+
+def test_extract_date_from_signal_html_file():
+    signal_html_file = "signal_2022_09_12.html"
+    expected = date(2022, 9, 12)
+    dt_extracted = nexity.extract_date_from_signal_html_file(signal_html_file)
+    assert expected == dt_extracted

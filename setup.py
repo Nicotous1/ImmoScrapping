@@ -3,7 +3,8 @@
 """The setup script."""
 
 from typing import List
-from setuptools import setup, find_packages
+
+from setuptools import find_packages, setup
 
 with open("README.rst") as readme_file:
     readme = readme_file.read()
@@ -11,7 +12,15 @@ with open("README.rst") as readme_file:
 with open("HISTORY.rst") as history_file:
     history = history_file.read()
 
-requirements: List[str] = ["pandas", "beautifulsoup4", "requests", "pyarrow"]
+requirements: List[str] = [
+    "pandas",
+    "beautifulsoup4",
+    "requests",
+    "pyarrow",
+    "boto3",
+    "bs4",
+    "chardet",
+]
 
 test_requirements = [
     "pytest>=3",
