@@ -5,9 +5,7 @@ name: Test, Build and Deploy to Lambda
 
 on:
     push:
-        branches: ["main"]
-    pull_request:
-        branches: ["main"]
+        branches: ["prod"]
 
 env:
     AWS_REGION: "eu-west-3"
