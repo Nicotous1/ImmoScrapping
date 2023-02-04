@@ -40,6 +40,7 @@ jobs:
         name: Build and Deploy Lambda Image
         runs-on: ubuntu-latest
         environment: production
+        needs: test
 
         steps:
             - name: Checkout
