@@ -35,7 +35,6 @@ jobs:
             - name: Test with pytest
               run: |
                   pytest
-
     deploy:
         name: Build and Deploy to Lambda
         runs-on: ubuntu-latest
