@@ -35,6 +35,7 @@ permissions:
 
 env:
   AWS_REGION: "eu-west-3"
+  ECR_REPOSITORY: "immo_scrap"
 
 jobs:
   deploy:
