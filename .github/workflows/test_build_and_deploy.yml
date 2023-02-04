@@ -15,7 +15,7 @@ env:
 
 jobs:
     test:
-        name: Run python test on immo_scrap
+        name: Testing ImmoScrap
         runs-on: ubuntu-latest
         strategy:
             fail-fast: false
@@ -70,7 +70,7 @@ jobs:
                   docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
                   echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-            - name: update lambda image
+            - name: Update lambda image
               uses: appleboy/lambda-action@master
               with:
                   aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
