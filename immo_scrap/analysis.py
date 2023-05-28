@@ -1,8 +1,25 @@
 from dataclasses import dataclass
+from enum import Enum
+from itertools import tee
 from pathlib import Path
-from typing import Generic, Iterable, List, TypeVar
+from typing import (Dict, Generic, Iterable, List, Set, Tuple, TypedDict,
+                    TypeVar)
 
 import pandas as pd
+from traitlets import Any
+
+T = TypeVar("T")
+
+
+def set_display_format_for_amount_with_separator() -> None:
+    pd.options.display.float_format = "{:,.2f}".format
+
+
+def pairwise(iterable: Iterable[T]) -> Iterable[Tuple[T, T]]:
+    # pairwise('ABCDEFG') --> AB BC CD DE EF FG
+    a, b = tee(iterable)
+    next(b, None)
+    return zip(a, b)
 
 
 def compute_periods_stats_by_bien(df: pd.DataFrame) -> pd.DataFrame:
@@ -60,6 +77,10 @@ from immo_scrap import histories
 class SnapshotDF:
     df: pd.DataFrame
     date: date
+
+
+def sort_snapshot_dfs_by_oldest_first(dfs: List[SnapshotDF]) -> List[SnapshotDF]:
+    return list(sorted(dfs, key=lambda x: x.date))
 
 
 SNAP_HISTORY = histories.ShortHistory[SnapshotDF]
@@ -246,3 +267,163 @@ def create_StatHistory_from_DFHistory(
         ),
         original=create_StatSnap_from_SnapDF(history.original),
     )
+
+
+class EventType(Enum):
+    SOLD = "SOLD"
+    PUBLISH = "PUBLISH"
+
+
+@dataclass
+class Event:
+    bien_id: str
+    date: date
+    type: EventType
+
+
+def create_event_from_series_date_and_type(
+    row: pd.Series, date: date, type: EventType
+) -> Event:
+    return Event(bien_id=row["id"], date=date, type=type)
+
+
+def create_events_of_type_with_date_from_df(
+    df: pd.DataFrame, date: date, type: EventType
+) -> List[Event]:
+    return [
+        create_event_from_series_date_and_type(row, date, type)
+        for _, row in df.iterrows()
+    ]
+
+
+def create_sold_events_from_df_at_date(df: pd.DataFrame, date: date) -> List[Event]:
+    return create_events_of_type_with_date_from_df(df, date, EventType.SOLD)
+
+
+def create_publish_events_from_df_at_date(df: pd.DataFrame, date: date) -> List[Event]:
+    return create_events_of_type_with_date_from_df(df, date, EventType.PUBLISH)
+
+
+def create_events_from_two_snaps_df(
+    current: SnapshotDF, previous: SnapshotDF
+) -> List[Event]:
+    compare = create_BiensCompareSnap_from_two_snap_df(current, previous)
+    return create_events_from_compare_snap_at_date(current.date, compare)
+
+
+def create_events_from_compare_snap_at_date(now: date, compare: BiensCompareSnap):
+    sold_events = create_sold_events_from_df_at_date(compare.sold, now)
+    publish_events = create_publish_events_from_df_at_date(compare.new, now)
+    events = sold_events + publish_events
+    return events
+
+
+def create_events_from_df_snaps(datas: List[SnapshotDF]) -> List[Event]:
+    datas_sorted = sort_snapshot_dfs_by_oldest_first(datas)
+    events = create_events_from_df_snaps_oldest_first(datas_sorted)
+    return events
+
+
+def create_events_from_df_snaps_oldest_first(
+    datas_sorted: List[SnapshotDF],
+) -> List[Event]:
+    events = []
+    for previous, current in pairwise(datas_sorted):
+        events_i = create_events_from_two_snaps_df(current, previous)
+        events += events_i
+    return events
+
+
+class EventRecord(TypedDict):
+    id: str
+    type: str
+    date: datetime
+
+
+def convert_date_to_midnight_datetime(date: date) -> datetime:
+    return datetime.combine(date, datetime.min.time())
+
+
+def create_record_from_event(event: Event) -> EventRecord:
+    return {
+        "id": event.bien_id,
+        "type": event.type.value,
+        "date": convert_date_to_midnight_datetime(event.date),
+    }
+
+
+def convert_events_to_dataframe(events: List[Event]) -> pd.DataFrame:
+    records = [create_record_from_event(event) for event in events]
+    return pd.DataFrame.from_records(records)
+
+
+def get_columnsnames_of_df_except_lists(
+    df: pd.DataFrame, to_filter: Iterable[str]
+) -> Set[str]:
+    columns = set(df.columns)
+    for col_to_filter in to_filter:
+        columns.remove(col_to_filter)
+    return columns
+
+
+def merge_snapshot_dfs_to_get_all_versions(datas: List[SnapshotDF]) -> pd.DataFrame:
+    datas_sorted = sort_snapshot_dfs_by_oldest_first(datas)
+    dfs_merged = concat_snapshots_dfs_to_one_df_with_snapshot(datas_sorted)
+    dfs_unique = remove_dupplicate_bien_of_df(dfs_merged)
+    return dfs_unique
+
+
+def remove_dupplicate_bien_of_df(
+    dfs_merged: pd.DataFrame,
+) -> pd.DataFrame:
+    cols_to_check_for_dupplicate = ["id", "price"]
+    dfs_unique = dfs_merged.drop_duplicates(
+        subset=cols_to_check_for_dupplicate, keep="first"
+    )
+    return dfs_unique
+
+
+def select_id_of_df(df: pd.DataFrame, id: str) -> pd.DataFrame:
+    return df.loc[df["id"] == id]
+
+
+def select_ids_of_df_sorted_by_snapshot(
+    df: pd.DataFrame, ids: List[str]
+) -> pd.DataFrame:
+    df = select_ids_of_df(df, ids)
+    df = df.sort_values(["id", "SNAPSHOT_DATE"], ascending=True)
+    return df
+
+
+def select_ids_of_events(df: pd.DataFrame, ids: List[str]) -> pd.DataFrame:
+    df = select_ids_of_df(df, ids)
+    df = df.sort_values(["id", "date"], ascending=True)
+    return df
+
+def extract_ids_with_more_than_two_event_from_events_df(df:pd.DataFrame)->List[str]:
+    counts = count_ids_dupplicate_with_bigger_first(df)
+    counts_more_than_2 = counts.loc[counts > 2]
+    ids = list(counts_more_than_2.index.values)
+    return ids
+
+def select_ids_of_df(df: pd.DataFrame, ids: List[str]) -> pd.DataFrame:
+    selector = df["id"].isin(ids)
+    df = df.loc[selector]
+    return df
+
+
+def concat_snapshots_dfs_to_one_df_with_snapshot(
+    datas_sorted: List[SnapshotDF],
+) -> pd.DataFrame:
+    dfs_to_merge: List[pd.DataFrame] = []
+    for data in datas_sorted:
+        df_i = data.df.copy()
+        df_i["SNAPSHOT_DATE"] = convert_date_to_midnight_datetime(data.date)
+        dfs_to_merge.append(df_i)
+    dfs_merged = pd.concat(dfs_to_merge, axis=0)
+    return dfs_merged
+
+
+def count_ids_dupplicate_with_bigger_first(df: pd.DataFrame) -> pd.Series:
+    s = df["id"].value_counts().sort_values(ascending=False).rename("N")
+    return s.loc[s > 1].copy()
