@@ -20,6 +20,7 @@ requirements: List[str] = [
     "boto3",
     "bs4",
     "chardet",
+    "matplotlib",
 ]
 
 test_requirements = [

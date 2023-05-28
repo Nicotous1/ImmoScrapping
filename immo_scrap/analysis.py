@@ -2,10 +2,10 @@ from dataclasses import dataclass
 from enum import Enum
 from itertools import tee
 from pathlib import Path
-from typing import (Dict, Generic, Iterable, List, Set, Tuple, TypedDict,
-                    TypeVar)
+from typing import Dict, Generic, Iterable, List, Set, Tuple, TypedDict, TypeVar
 
 import pandas as pd
+from matplotlib.pyplot import ylim
 from traitlets import Any
 
 T = TypeVar("T")
@@ -181,7 +181,11 @@ def format_GlobalAnalysis_text(analysis: GlobalAnalysis) -> str:
 def format_stat_history_N(history: histories.ShortHistory[StatSnap]) -> str:
     res = f"Historique du nombre de biens :\n"
     res += f"\t{format_stat_snap(history.original)}\n"
-    res += f"\t{format_stat_snap(history.previous)}\n"
+    res += (
+        f"\t{format_stat_snap(history.previous)}\n"
+        if history.previous
+        else "No previous snap"
+    )
     res += f"\t{format_stat_snap(history.current)}\n"
     return res
 
@@ -400,11 +404,39 @@ def select_ids_of_events(df: pd.DataFrame, ids: List[str]) -> pd.DataFrame:
     df = df.sort_values(["id", "date"], ascending=True)
     return df
 
-def extract_ids_with_more_than_two_event_from_events_df(df:pd.DataFrame)->List[str]:
+
+def extract_ids_with_more_than_one_event_from_events_df(df: pd.DataFrame) -> List[str]:
     counts = count_ids_dupplicate_with_bigger_first(df)
-    counts_more_than_2 = counts.loc[counts > 2]
+    counts_more_than_2 = counts.loc[counts > 1]
     ids = list(counts_more_than_2.index.values)
     return ids
+
+
+def extract_ids_with_republish_event_from_events_df(df: pd.DataFrame) -> List[str]:
+    stats = compute_date_stats_by_bien_for_events_df(df)
+    has_republish = (stats["FIRST_SOLD"] < stats["LAST_PUBLISH"]).fillna(False)
+    stats_republished = stats.loc[has_republish]
+    return list(stats_republished.index.values)
+
+
+def compute_date_stats_by_bien_for_events_df(df: pd.DataFrame) -> pd.DataFrame:
+    return pd.concat(
+        [
+            df.loc[df.type == "SOLD"].groupby("id")["date"].min().rename("FIRST_SOLD"),
+            df.loc[df.type == "PUBLISH"]
+            .groupby("id")["date"]
+            .max()
+            .rename("LAST_PUBLISH"),
+        ],
+        axis=1,
+    )
+
+
+def put_columns_first_in_df(df: pd.DataFrame, columns_first: List[str]) -> pd.DataFrame:
+    others_colums = [col for col in df.columns if col not in columns_first]
+    columns = columns_first + others_colums
+    return df[columns]
+
 
 def select_ids_of_df(df: pd.DataFrame, ids: List[str]) -> pd.DataFrame:
     selector = df["id"].isin(ids)
@@ -421,9 +453,126 @@ def concat_snapshots_dfs_to_one_df_with_snapshot(
         df_i["SNAPSHOT_DATE"] = convert_date_to_midnight_datetime(data.date)
         dfs_to_merge.append(df_i)
     dfs_merged = pd.concat(dfs_to_merge, axis=0)
+    dfs_merged = put_columns_first_in_df(dfs_merged, ["id", "SNAPSHOT_DATE"])
     return dfs_merged
 
 
 def count_ids_dupplicate_with_bigger_first(df: pd.DataFrame) -> pd.Series:
     s = df["id"].value_counts().sort_values(ascending=False).rename("N")
     return s.loc[s > 1].copy()
+
+
+def get_ids_with_evolution_from_histories(df: pd.DataFrame) -> List[str]:
+    counts_evolved = count_ids_dupplicate_with_bigger_first(df)
+    return list(counts_evolved.index.values)
+
+
+def select_events_after_date(df: pd.DataFrame, date: datetime) -> pd.DataFrame:
+    return df.loc[df["date"] >= date]
+
+
+def sort_events_df(df: pd.DataFrame) -> pd.DataFrame:
+    return df.sort_values("date", ascending=True)
+
+
+def keep_last_events_for_each_bien(df: pd.DataFrame) -> pd.DataFrame:
+    df = sort_events_df(df)
+    return df.drop_duplicates(subset=["id", "type"], keep="last")
+
+
+def extract_stock_over_dt_from_snapshot_dfs(datas: List[SnapshotDF]) -> pd.Series:
+    records = {
+        convert_date_to_midnight_datetime(data.date): len(data.df) for data in datas
+    }
+    return pd.Series(records)
+
+
+def extract_daily_stock_with_forward_fill_from_snapshot_dfs(
+    datas: List[SnapshotDF],
+) -> pd.Series:
+    stocks = extract_stock_over_dt_from_snapshot_dfs(datas)
+    stocks_reindexed = reindex_stocks_daily_by_filling_gap_with_previous_value(stocks)
+    return stocks_reindexed
+
+
+def reindex_stocks_daily_by_filling_gap_with_previous_value(
+    raw: pd.Series,
+) -> pd.Series:
+    start, end = raw.index.min(), raw.index.max()
+    index = pd.date_range(start, end, freq="D")
+    raw_reindexed = raw.reindex(index)
+    raw_filled = raw_reindexed.fillna(method="ffill")
+    return raw_filled
+
+
+def plot_stocks_over_time(stocks: pd.Series) -> None:
+    max = stocks.max()
+    ylim_stock = (0, max * 1.1)
+    return stocks.plot(ylim=ylim_stock, grid=True)  # type: ignore matplotlib error
+
+
+def plot_center_zero_axis_with_grid(df: pd.DataFrame) -> None:
+    y_abs_max = df.abs().max().max() * 1.1
+    ylim_plot = (-y_abs_max, y_abs_max)
+    df.plot(grid=True, ylim=ylim_plot)
+
+
+def plot_sell_ratio_over_time(
+    stocks: pd.Series, SELL_RATIO_SHIFT_DAYS: int = 30, AVG_ROLLING_PLOT_DAYS: int = 15
+) -> None:
+    df = concat_stocks_with_n_days_shift(stocks, SELL_RATIO_SHIFT_DAYS)
+
+    df["REMAINING_RATIO"] = df["N-0D"] / df[f"N-{SELL_RATIO_SHIFT_DAYS}D"]
+    df[f"SELLING_RATIO_{SELL_RATIO_SHIFT_DAYS}D"] = 1 - df["REMAINING_RATIO"]
+    df[f"SELLING_RATIO_AVG_ROLLING_{AVG_ROLLING_PLOT_DAYS}D"] = (
+        df[f"SELLING_RATIO_{SELL_RATIO_SHIFT_DAYS}D"]
+        .rolling(window=AVG_ROLLING_PLOT_DAYS)
+        .mean()
+    )
+    df_to_plot = df[
+        [
+            f"SELLING_RATIO_{SELL_RATIO_SHIFT_DAYS}D",
+            f"SELLING_RATIO_AVG_ROLLING_{AVG_ROLLING_PLOT_DAYS}D",
+        ]
+    ]
+    plot_center_zero_axis_with_grid(df_to_plot)
+
+
+def plot_selling_speed_over_time(
+    stocks: pd.Series, SELL_RATIO_SHIFT_DAYS: int = 30, AVG_ROLLING_PLOT_DAYS: int = 15
+) -> None:
+    df = concat_stocks_with_n_days_shift(stocks, SELL_RATIO_SHIFT_DAYS)
+
+    df["N_SOLD"] = df[f"N-{SELL_RATIO_SHIFT_DAYS}D"] - df["N-0D"]
+    df[f"DAILY_SELLING_SPEED_{SELL_RATIO_SHIFT_DAYS}D"] = (
+        df["N_SOLD"] / SELL_RATIO_SHIFT_DAYS
+    )
+    df[f"MONTHLY_SELLING_SPEED_{SELL_RATIO_SHIFT_DAYS}D"] = (
+        df[f"DAILY_SELLING_SPEED_{SELL_RATIO_SHIFT_DAYS}D"] * 30
+    )
+    df[f"MONTHLY_SELLING_SPEED_AVG_ROLLING_{AVG_ROLLING_PLOT_DAYS}D"] = (
+        df[f"MONTHLY_SELLING_SPEED_{SELL_RATIO_SHIFT_DAYS}D"]
+        .rolling(window=AVG_ROLLING_PLOT_DAYS)
+        .mean()
+    )
+    df_to_plot = df[
+        [
+            f"MONTHLY_SELLING_SPEED_{SELL_RATIO_SHIFT_DAYS}D",
+            f"MONTHLY_SELLING_SPEED_AVG_ROLLING_{AVG_ROLLING_PLOT_DAYS}D",
+        ]
+    ]
+    plot_center_zero_axis_with_grid(df_to_plot)
+
+
+def concat_stocks_with_n_days_shift(
+    stocks: pd.Series, SELL_RATIO_SHIFT_DAYS: int
+) -> pd.DataFrame:
+    df = pd.concat(
+        [
+            stocks.rename("N-0D"),
+            stocks.shift(SELL_RATIO_SHIFT_DAYS).rename(f"N-{SELL_RATIO_SHIFT_DAYS}D"),
+        ],
+        axis=1,
+    )
+
+    return df
