@@ -10,7 +10,7 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup, ResultSet, Tag
 
-from immo_scrap import analysis
+from . import analysis
 
 
 def extract_tables_from_soup(soup: BeautifulSoup) -> ResultSet:

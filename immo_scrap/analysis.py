@@ -6,7 +6,6 @@ from typing import Dict, Generic, Iterable, List, Set, Tuple, TypedDict, TypeVar
 
 import pandas as pd
 from matplotlib.pyplot import ylim
-from traitlets import Any
 
 T = TypeVar("T")
 
@@ -70,7 +69,7 @@ def build_analysis_df_for_each_bien(biens: pd.DataFrame) -> pd.DataFrame:
 
 from datetime import date, datetime
 
-from immo_scrap import histories
+from . import histories
 
 
 @dataclass

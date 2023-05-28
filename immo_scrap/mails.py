@@ -1,4 +1,4 @@
-from immo_scrap import analysis, aws
+from . import analysis, aws
 
 
 def send_analysis_if_sold_or_new(analysis: analysis.GlobalAnalysis) -> None:

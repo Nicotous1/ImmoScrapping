@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from immo_scrap import analysis, aws, histories, mails, nexity
+from . import analysis, aws, histories, mails, nexity
 
 
 def analyse_and_send_mail_if_needed(folder: Path) -> None:

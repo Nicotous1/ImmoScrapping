@@ -5,7 +5,7 @@ from typing import Any, Generic, Iterable, Protocol, TypeVar, Union
 
 import boto3
 
-from immo_scrap import nexity
+from . import nexity
 
 REGION_NAME: str = "eu-west-3"
 ME_EMAIL: str = "ntoussai29@gmail.com"
@@ -219,7 +219,7 @@ def iter_nexity_s3_file_of_bucket(bucket: S3Bucket) -> Iterable[NexityS3File]:
         yield create_NexityS3File_from_s3_file(signal_s3_file)
 
 
-from immo_scrap import histories, nexity
+from . import histories, nexity
 
 NEXITY_S3_OS_HISTORY = histories.ShortHistory[Union[NexityS3File, nexity.NexityFile]]
 
