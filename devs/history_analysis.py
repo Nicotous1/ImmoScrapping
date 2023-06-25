@@ -1,6 +1,6 @@
 # %%
-%load_ext autoreload # type:ignore
-%autoreload 2 # type:ignore
+%load_ext autoreload
+%autoreload 2
 from datetime import date, datetime
 from pathlib import Path
 from typing import List
@@ -13,7 +13,7 @@ analysis.set_display_format_for_amount_with_separator()
 DOWNLOAD_FOLDER = Path("../downloads/")
 # %% Fetching data
 bucket = aws.create_nexity_bucket()
-bucket.download_all_to_folder(DOWNLOAD_FOLDER)
+bucket.download_all_missing_to_folder(DOWNLOAD_FOLDER)
 # %%
 datas = nexity.load_scrapping_folder_to_snapshot_df_list(DOWNLOAD_FOLDER)
 

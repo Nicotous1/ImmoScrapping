@@ -92,6 +92,10 @@ class S3Bucket:
         for file in self.iter_files():
             file.download_to_folder(folder)
 
+    def download_all_missing_to_folder(self, folder: Path) -> None:
+        for file in self.iter_files():
+            file.download_to_folder_if_missing(folder)
+
     def iter_files_prefixed(self, prefix: str):
         return iter_aws_object_desc_from_bucket_to_S3File(
             self.aws.objects.filter(Prefix=prefix), self
@@ -164,6 +168,11 @@ class S3File:
     def download_to_folder(self, folder: Path) -> None:
         path = folder / self.key
         self.download_to(path)
+
+    def download_to_folder_if_missing(self, folder: Path) -> None:
+        path = folder / self.key
+        if not path.exists():
+            self.download_to(path)
 
     def check_if_exists(self) -> bool:
         return self.bucket.check_contains_s3_file(self)
