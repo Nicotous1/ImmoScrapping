@@ -316,8 +316,13 @@ def save_nexity_biens_to_parquet(biens: List[NexityBien], path: Path) -> None:
     df.to_parquet(path)
 
 
+DEFAULT_HEADERS = {
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.142 Safari/537.36"
+}
+
+
 def download_content_from_url(url: str) -> bytes:
-    return requests.get(url).content
+    return requests.get(url, headers=DEFAULT_HEADERS).content
 
 
 def create_beautiful_soup_from_html_bytes(data: bytes) -> BeautifulSoup:
