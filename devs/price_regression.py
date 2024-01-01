@@ -25,3 +25,7 @@ df_history
 # %%
 regs_coeffs = regression.compute_regression_coef_by_snapshot_from_df_history(df_history)
 regression.plot_regression_coefs(regs_coeffs)
+
+# %%    
+prices = regression.extract_price_m2_for_each_snapshot_by_biens(df_history)
+regression.plot_price_m2_by_snapshot(prices)
