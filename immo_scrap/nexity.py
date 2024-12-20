@@ -10,6 +10,7 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup, ResultSet, Tag
 
+from .scrap_v2 import loader as loader_v2
 from . import analysis
 
 
@@ -431,8 +432,7 @@ def load_biens_from_file_loaded_at(
     file: Path, date_loaded: datetime
 ) -> List[NexityBien]:
     print(f"Loading biens from {file.name} extracted at {date_loaded}...")
-    soup = download_soup_from_file(file)
-    biens = extract_nexity_biens_from_soup(soup, date_loaded)
+    biens = loader_v2.load_nexity_bien_from_html_path(file, date_loaded)
     print("Done")
     return biens
 

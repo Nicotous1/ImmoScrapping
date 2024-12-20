@@ -2,6 +2,10 @@ FROM public.ecr.aws/lambda/python:3.8
 
 WORKDIR /app
 
+# Install Node.js and npm
+RUN curl -fsSL https://rpm.nodesource.com/setup_16.x | bash - \
+    && yum install -y nodejs
+
 COPY ./README.rst /app/README.rst
 COPY ./HISTORY.rst /app/HISTORY.rst
 COPY ./setup.py /app/setup.py
