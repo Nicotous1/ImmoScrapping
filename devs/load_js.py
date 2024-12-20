@@ -18,5 +18,3 @@ data = context.eval(
     "window.__NUXT__.state.productDetails.lots"
 )  # Évaluer la variable 'data'
 print("Contenu de data :", data)
-
-# %%

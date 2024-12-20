@@ -37,6 +37,6 @@ def save_to_s3_folder(folder: Path) -> None:
 def download_analyse_send_mail_if_needed_and_save_to_s3(folder: Path) -> None:
     print("Start task")
     scrap_and_download_from_s3_history(folder)
-    analyse_and_send_mail_if_needed(folder)
     save_to_s3_folder(folder)
+    analyse_and_send_mail_if_needed(folder)
     print("Done")
