@@ -1,3 +1,5 @@
+# [WARNING] You must have docker desktop launched -> else no daemon :)
+
 # Build docker image
 
 docker build -t immo_scrap .
